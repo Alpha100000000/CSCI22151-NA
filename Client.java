@@ -1,7 +1,7 @@
 // Name: Alec Clinton
 // Class: CSCI2251
 // FileName: Client.java
-// Assignment: Concurrent Processing Over a Network – Part 1 & 2 
+// Assignment: Concurrent Processing Over a Network – Part 1 & 2
 
 import javax.swing.*;
 import java.awt.*;
@@ -11,8 +11,8 @@ import java.net.Socket;
 import java.util.Scanner;
 
 public class Client extends JFrame {
-    private JTextField enterField;     // Field for user to enter filename
-    private JTextArea displayArea;     // Area to display matrix contents and status
+    private JTextField enterField;
+    private JTextArea displayArea;
 
     public Client() {
         super("Matrix Client GUI");
@@ -23,26 +23,34 @@ public class Client extends JFrame {
         add(enterField, BorderLayout.NORTH);
         add(new JScrollPane(displayArea), BorderLayout.CENTER);
 
-        // Handle Enter key press in text field
+        // Action when Enter key is pressed
         enterField.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent e) {
                 String filename = e.getActionCommand();
                 try {
-                    int[][][] matrices = readMatricesFromFile(filename); // [0] = A, [1] = B
+                    int[][][] matrices = readMatricesFromFile(filename);
                     displayArea.setText("Matrix A:\n");
                     displayMatrix(matrices[0]);
                     displayArea.append("\nMatrix B:\n");
                     displayMatrix(matrices[1]);
-                    sendToServer(matrices[0], matrices[1]);
+
+                    // Send matrices and receive result
+                    int[][] result = sendToServer(matrices[0], matrices[1]);
+
+                    // Display result
+                    displayArea.append("\nResult Matrix:\n");
+                    displayMatrix(result);
+
                 } catch (Exception ex) {
-                    displayArea.append("\n❌ Error: " + ex.getMessage() + "\n");
+                    displayArea.append("\nError: " + ex.getMessage() + "\n");
                     ex.printStackTrace();
                 }
             }
         });
 
-        setSize(500, 400);
+        setSize(500, 500);
         setVisible(true);
+        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
     }
 
     // Reads two matrices from file
@@ -56,20 +64,19 @@ public class Client extends JFrame {
         int[][] matrixA = new int[rows][cols];
         int[][] matrixB = new int[rows][cols];
 
-        // Fill matrix A
         for (int i = 0; i < rows; i++)
             for (int j = 0; j < cols; j++)
                 matrixA[i][j] = input.nextInt();
 
-        // Fill matrix B
         for (int i = 0; i < rows; i++)
             for (int j = 0; j < cols; j++)
                 matrixB[i][j] = input.nextInt();
 
+        input.close();
         return new int[][][] { matrixA, matrixB };
     }
 
-    // Displays a matrix in the text area
+    // Displays matrix on GUI
     private void displayMatrix(int[][] matrix) {
         for (int[] row : matrix) {
             for (int val : row)
@@ -78,29 +85,39 @@ public class Client extends JFrame {
         }
     }
 
-    // Sends matrices to server via socket
-    private void sendToServer(int[][] matrixA, int[][] matrixB) throws IOException {
-        Socket socket = new Socket("127.0.0.1", 64757);
+    // Sends matrices to server and receives summed result
+    private int[][] sendToServer(int[][] matrixA, int[][] matrixB) throws IOException, ClassNotFoundException {
+        Socket socket = new Socket("127.0.0.1", 64757); // Connect to server
         ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream());
+        ObjectInputStream in = new ObjectInputStream(socket.getInputStream());
 
+        // Send both matrices
         out.writeObject(matrixA);
         out.writeObject(matrixB);
         out.flush();
 
-        displayArea.append("\n✅ Matrices sent to server.\n");
+        // Receive result matrix
+        Object resultObj = in.readObject();
+        int[][] resultMatrix = (int[][]) resultObj;
 
+        // Send termination signal
+        out.writeObject("TERMINATE");
+        out.flush();
+
+        out.close();
+        in.close();
         socket.close();
+
+        return resultMatrix;
     }
 
-    // Entry point if you want to run Client directly
+    // Launch client GUI
     public static void main(String[] args) {
-        Client client = new Client();
-        client.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        new Client();
     }
 
-    // Optional method for ClientStart.java to call
+    // For launching from ClientStart.java
     public void startClient() {
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
     }
 }
-
